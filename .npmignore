@@ -1,0 +1,33 @@
+# Development
+.git/
+.gitignore
+.github/
+
+# Documentation
+doc/
+README.md
+
+# Tests
+test/
+tests/
+__tests__/
+
+# Development configuration
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
