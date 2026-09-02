@@ -819,13 +819,26 @@ class Dankoma {
     }
 
     findCenterLane(width, height, vx) {
-        let fallback = null;
+        let leastOccupiedLane = null;
+        let minCommentCount = Infinity;
+
         for (let i = 0; i < this.centerLanes.length; i++) {
             const lane = this.centerLanes[i];
-            if (fallback === null && lane.comments.length === 0) fallback = i;
-            if (this.canUseCenterLane(width, height, vx, i)) return i;
+
+            // Prefer a collision-free lane.
+            if (this.canUseCenterLane(width, height, vx, i)) {
+                return i;
+            }
+
+            // Otherwise remember the least occupied lane.
+            if (lane.comments.length < minCommentCount) {
+                minCommentCount = lane.comments.length;
+                leastOccupiedLane = i;
+            }
         }
-        return fallback;
+
+        // Every lane is unsafe, so permit collision in the least busy lane.
+        return leastOccupiedLane;
     }
 
     /* ---------------------------------------------------------
