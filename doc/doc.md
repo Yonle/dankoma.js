@@ -115,7 +115,6 @@ The default configuration is:
     mode7: {
         weight: 400,
         outlineWidth: 1,
-        focalLength: 800,
     },
 }
 ```
@@ -204,7 +203,6 @@ Configuration for Mode 7 danmaku.
 mode7: {
     weight: 400,
     outlineWidth: 1,
-    focalLength: 800,
 }
 ```
 
@@ -212,7 +210,6 @@ mode7: {
 | -------------- | --------------------------- |
 | `weight`       | Default Mode 7 font weight. |
 | `outlineWidth` | Default outline width.      |
-| `focalLength`  | Perspective focal length.   |
 
 ---
 
@@ -655,7 +652,6 @@ const dankoma = new Dankoma(canvas, {
     mode7: {
         weight: 400,
         outlineWidth: 1,
-        focalLength: 800,
     },
 });
 ```
