@@ -44,17 +44,7 @@ Dankoma can be used directly in a browser environment.
 const canvas = document.getElementById("danmaku");
 const video = document.querySelector("video");
 
-const dankoma = new Dankoma(canvas, {
-    laneHeight: 32,
-    dpr: 1.5,
-
-    fonts: {
-        scroll: 28,
-        fixed: 32,
-        weight: 500,
-        family: `"SimHei", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif`,
-    },
-
+const dankoma = new Dankoma(canvas,
     style: {
         opacity: 0.8,
     },
@@ -67,12 +57,6 @@ const dankoma = new Dankoma(canvas, {
 
     fixed: {
         lifetime: 5000,
-    },
-
-    mode7: {
-        weight: 400,
-        outlineWidth: 1,
-        focalLength: 800,
     },
 });
 

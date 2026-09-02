@@ -89,7 +89,7 @@ The default configuration is:
 ```js
 {
     laneHeight: 32,
-    dpr: 1.5,
+    dpr: 1,
 
     fonts: {
         scroll: 28,
