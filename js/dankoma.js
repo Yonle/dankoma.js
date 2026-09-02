@@ -56,11 +56,12 @@ class Dankoma {
     constructor(canvas, config = {}) {
         this.canvas = canvas;
         this.ctx = this.canvas.getContext("2d", { alpha: true });
+        this.ctx.imageSmoothingEnabled = false;
 
         // Default Config
         this.config = {
             laneHeight: 32,
-            dpr: 1.5,
+            dpr: 1,
             fonts: {
                 scroll: 28,
                 fixed: 32,
@@ -70,7 +71,7 @@ class Dankoma {
             style: { opacity: 0.8 },
             scroll: { duration: 6.5, lookahead: 8, gap: 2 },
             fixed: { lifetime: 5000 },
-            mode7: { weight: 400, outlineWidth: 1, focalLength: 800 },
+            mode7: { weight: 400, outlineWidth: 1 },
         };
         
         // Merge user config
@@ -263,8 +264,12 @@ class Dankoma {
     }
 
     updateDanmaku(currentTime) {
-        if (currentTime < this.lastVideoTime) {
+        if (Math.abs(currentTime - this.lastVideoTime) > 1.0) {
             this.seekDanmaku(currentTime);
+
+            // Clear active comments so the screen doesn't get flooded with old sprites
+            this.comments = [];
+            this.rebuildLanes();
         }
 
         while (this.danmakuIndex < this.timeline.length && this.timeline[this.danmakuIndex].time <= currentTime) {
@@ -299,6 +304,10 @@ class Dankoma {
     /* ---------------------------------------------------------
      * Mode 7 Logic
      * ------------------------------------------------------ */
+    mode7CameraDistance() {
+        return this.W / (2 * Math.tan(degree(55 / 2)));
+    }
+
     mode7FontFamily(value) {
         if (!value) return this.config.fonts.family;
         let font = String(value).trim();
@@ -442,9 +451,9 @@ class Dankoma {
         const sprite = this.getMode7Sprite(danmaku);
         if (danmaku.yRotation === 0) return sprite;
 
-        const focal = this.config.mode7.focalLength ?? 1000;
+        const focal = this.mode7CameraDistance();
         const slices = Math.min(24, Math.max(8, Math.ceil(sprite.width / 8)));
-        const rotationKey = Math.round(danmaku.yRotation * 10) / 10;
+        const rotationKey = Math.round(danmaku.yRotation * 2) / 2; // Quantize to 0.5 degree steps
 
         let cache = this.mode7RenderedCache.get(sprite);
         if (!cache) {
@@ -452,7 +461,7 @@ class Dankoma {
             this.mode7RenderedCache.set(sprite, cache);
         }
 
-        const key = `${rotationKey}:${focal}:${slices}`;
+        const key = `${rotationKey}:${this.W}:${slices}`;
         let rendered = cache.get(key);
         if (rendered) return rendered;
 
@@ -461,12 +470,11 @@ class Dankoma {
         const sinA = Math.sin(angle);
         const width = sprite.width;
         const height = sprite.height;
-        const halfW = width / 2;
         const spriteDpr = sprite.canvas.width / sprite.width;
         const srcCanvasWidth = sprite.canvas.width;
         const srcH = sprite.canvas.height;
-        const leftX = -halfW;
-        const rightX = halfW;
+        const leftX = 0;
+        const rightX = width;
 
         const leftDepth = focal - leftX * sinA;
         const rightDepth = focal - rightX * sinA;
@@ -484,17 +492,56 @@ class Dankoma {
 
         const outputWidth = Math.ceil(maxX - minX) + pad * 2;
         const outputHeight = Math.ceil(projectedHeight) + pad * 2;
+
+        const start = performance.now();
+
+        /*console.log({
+            spriteWidth: sprite.width,
+            spriteHeight: sprite.height,
+            outputWidth,
+            outputHeight,
+            minX,
+            maxX,
+            projectedHeight,
+            angle: danmaku.yRotation
+        });*/
+
+        if (
+            !Number.isFinite(outputWidth) ||
+            !Number.isFinite(outputHeight) ||
+            outputWidth <= 0 ||
+            outputHeight <= 0 ||
+            (outputWidth * outputHeight > 16_000_000)
+        ) {
+            console.log("mode7 bakery: What the fuck: ", danmaku.text?.slice(0, 20))
+            console.log({
+                W: this.W,
+                H: this.H,
+                focal,
+                angle: danmaku.yRotation,
+                width,
+                leftDepth,
+                rightDepth,
+                leftScale,
+                rightScale,
+                outputWidth
+            });
+            cache.set(key, sprite);
+            return sprite;
+        }
+
         const outputCanvas = document.createElement("canvas");
         outputCanvas.width = Math.ceil(outputWidth * spriteDpr);
         outputCanvas.height = Math.ceil(outputHeight * spriteDpr);
         
         const out = outputCanvas.getContext("2d", { alpha: true });
+        out.imageSmoothingEnabled = false;
         out.setTransform(spriteDpr, 0, 0, spriteDpr, 0, 0);
-        out.translate(-minX + pad, projectedHeight / 2 + pad);
+        out.translate(-minX + pad, pad);
 
         for (let i = 0; i < slices; i++) {
-            const x0 = -halfW + (width * i) / slices;
-            const x1 = -halfW + (width * (i + 1)) / slices;
+            const x0 = (width * i) / slices;
+            const x1 = (width * (i + 1)) / slices;
             const rotX0 = x0 * cosA;
             const rotZ0 = -x0 * sinA;
             const depth0 = focal + rotZ0;
@@ -509,20 +556,40 @@ class Dankoma {
 
             const scale1 = focal / depth1;
             const destX1 = rotX1 * scale1;
-            const destWidth = destX1 - destX0;
-            if (destWidth <= 0) continue;
+            const destLeft = Math.min(destX0, destX1);
+            const destWidth = Math.abs(destX1 - destX0);
 
             const destHeight = height * scale0;
-            const destY = -destHeight / 2;
+            const destY = 0;
             const srcX0 = Math.floor((srcCanvasWidth * i) / slices);
             const srcX1 = Math.floor((srcCanvasWidth * (i + 1)) / slices);
             const srcW = srcX1 - srcX0;
             if (srcW <= 0) continue;
 
-            out.drawImage(sprite.canvas, srcX0, 0, srcW, srcH, destX0, destY, destWidth, destHeight);
+            /*console.log({
+                depth0,
+                depth1,
+                scale0,
+                scale1,
+                destX0,
+                destX1
+            });*/
+
+            out.drawImage(
+                sprite.canvas,
+                srcX0, 0, srcW, srcH,
+                destLeft, destY, destWidth, destHeight
+            );
         }
 
-        rendered = { canvas: outputCanvas, width: outputWidth, height: outputHeight, offsetX: minX - pad, offsetY: -projectedHeight / 2 - pad };
+        rendered = {
+            canvas: outputCanvas,
+            width: outputWidth,
+            height: outputHeight,
+            offsetX: minX - pad,
+            offsetY: -pad
+        };
+
         cache.set(key, rendered);
         return rendered;
     }
@@ -699,6 +766,8 @@ class Dankoma {
         this.canvas.style.width = `${this.W}px`;
         this.canvas.style.height = `${this.H}px`;
 
+        this.mode7RenderedCache = new WeakMap();
+
         this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         this.ctx.textBaseline = "middle";
         this.rebuildLanes();
@@ -866,22 +935,39 @@ class Dankoma {
 
         this.ctx.clearRect(0, 0, this.W, this.H);
 
-        for (let i = this.comments.length - 1; i >= 0; i--) {
+        // Array to hold comments that survive this frame
+        const activeComments = [];
+
+        for (let i = 0; i < this.comments.length; i++) {
             const c = this.comments[i];
+            let keep = true;
+
             if (c.mode === "scroll") {
                 c.x -= c.vx * dt;
                 if (c.x + c.width < -30) {
-                    this.removeComment(i);
-                    continue;
+                    keep = false;
                 }
             } else {
                 if (now - c.born > c.lifetime) {
-                    this.removeComment(i);
-                    continue;
+                    keep = false;
                 }
             }
-            this.drawComment(c);
+
+            if (keep) {
+                activeComments.push(c);
+                this.drawComment(c);
+            } else if (c.mode === "scroll") {
+                // Clean up lane references for removed scroll comments
+                const lane = this.centerLanes[c.laneIndex];
+                if (lane) {
+                    const laneIdx = lane.comments.indexOf(c);
+                    if (laneIdx !== -1) lane.comments.splice(laneIdx, 1);
+                }
+            }
         }
+
+        // Swap the array in one clean assignment
+        this.comments = activeComments;
         this.ctx.globalAlpha = 1;
     }
 }
