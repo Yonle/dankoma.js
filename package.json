@@ -1,6 +1,6 @@
 {
   "name": "dankoma.js",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "High-performance Bilibili-style danmaku renderer with Mode 7 support.",
   "main": "js/dankoma.js",
   "keywords": [
