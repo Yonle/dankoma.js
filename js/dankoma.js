@@ -305,7 +305,7 @@ class Dankoma {
      * Mode 7 Logic
      * ------------------------------------------------------ */
     mode7CameraDistance() {
-        return this.W / (2 * Math.tan(degree(55 / 2)));
+        return this.W / (2 * Math.tan(degree(20 / 2)));
     }
 
     mode7FontFamily(value) {
