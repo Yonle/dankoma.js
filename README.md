@@ -33,8 +33,9 @@ Dankoma can be used directly in a browser environment.
 
 ```html
 <canvas id="danmaku"></canvas>
+<video></video>
 
-<script src="danmaku.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dankoma.js@0.0.2"></script>
 ```
 
 ## Basic Usage

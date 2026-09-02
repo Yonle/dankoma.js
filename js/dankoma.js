@@ -368,7 +368,7 @@ class Dankoma {
             text: String(data[4] ?? ""),
             fontSize,
             fontFamily,
-            fontWeight: this.config.fonts.weight,
+            fontWeight: this.config.mode7.weight,
             color,
             outline: Boolean(outline),
             outlineWidth: this.config.mode7.outlineWidth,
