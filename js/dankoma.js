@@ -853,6 +853,7 @@ class Dankoma {
         const now = performance.now();
         let lane = null;
 
+        // 1. Try to find a lane that is free right now
         for (let i = 0; i < lanes.length; i++) {
             if (lanes[i].occupiedUntil <= now) {
                 lane = lanes[i];
@@ -860,10 +861,22 @@ class Dankoma {
             }
         }
 
+        // 2. If every lane is occupied, pick the one that will become free soonest
+        if (!lane) {
+            let earliestFreeTime = Infinity;
+            for (let i = 0; i < lanes.length; i++) {
+                if (lanes[i].occupiedUntil < earliestFreeTime) {
+                    earliestFreeTime = lanes[i].occupiedUntil;
+                    lane = lanes[i];
+                }
+            }
+        }
+
+        // (Should never happen because lanes always exist, but safe guard)
         if (!lane) return false;
 
         const lifetime = this.config.fixed.lifetime;
-        lane.occupiedUntil = now + lifetime;
+        lane.occupiedUntil = now + lifetime;  // overwrite occupancy
 
         let y;
         if (mode === "top") {
@@ -875,7 +888,7 @@ class Dankoma {
         this.comments.push({
             text, mode, x: this.W / 2, y,
             width: metrics.width, height: metrics.height,
-            sprite: sprite, spriteWidth: sprite.width, spriteHeight: sprite.height,
+            sprite, spriteWidth: sprite.width, spriteHeight: sprite.height,
             glyphX: sprite.glyphX, glyphY: sprite.glyphY,
             anchorX: sprite.anchorX, anchorY: sprite.anchorY,
             color, alpha: this.config.style.opacity, font: metrics.font,
