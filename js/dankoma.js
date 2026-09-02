@@ -63,13 +63,13 @@ class Dankoma {
             laneHeight: 32,
             dpr: 1,
             fonts: {
-                scroll: 28,
+                scroll: 32,
                 fixed: 32,
                 weight: 500,
                 family: `"SimHei", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif`,
             },
             style: { opacity: 0.8 },
-            scroll: { duration: 6.5, lookahead: 8, gap: 2 },
+            scroll: { duration: 8.5, lookahead: 4, gap: 2 },
             fixed: { lifetime: 5000 },
             mode7: { weight: 400, outlineWidth: 1 },
         };

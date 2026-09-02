@@ -92,7 +92,7 @@ The default configuration is:
     dpr: 1,
 
     fonts: {
-        scroll: 28,
+        scroll: 32,
         fixed: 32,
         weight: 500,
         family: `"SimHei", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif`,
@@ -103,8 +103,8 @@ The default configuration is:
     },
 
     scroll: {
-        duration: 6.5,
-        lookahead: 8,
+        duration: 8.5,
+        lookahead: 4,
         gap: 2,
     },
 
