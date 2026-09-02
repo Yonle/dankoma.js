@@ -295,6 +295,7 @@ class Dankoma {
     danmaFrame(now) {
         if (this.video && !this.video.paused && this.drawEnabled) {
             const currentTime = this.video.currentTime;
+            this.ctx.clearRect(0, 0, this.W, this.H);
             this.drawDanmaFrame(now);
             this.mode7frameDanma(currentTime);
         }
@@ -945,8 +946,6 @@ class Dankoma {
         if (!now) now = performance.now();
         const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.05));
         this.lastTime = now;
-
-        this.ctx.clearRect(0, 0, this.W, this.H);
 
         // Array to hold comments that survive this frame
         const activeComments = [];
