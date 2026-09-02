@@ -405,7 +405,7 @@ class Dankoma {
             textWidth = Math.max(textWidth, measureCtx.measureText(line).width);
         }
 
-        const lineHeight = Math.max(this.config.laneHeight, Math.ceil(fontSize * 1.25));
+        const lineHeight = Math.max(1, Math.ceil(fontSize));
         const padding = outline ? Math.ceil(outlineWidth * 2 + fontSize * 0.1) : Math.ceil(fontSize * 0.1);
 
         const logicalWidth = Math.max(1, Math.ceil(textWidth + padding * 2));
