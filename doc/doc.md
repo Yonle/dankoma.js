@@ -23,6 +23,9 @@ Dankoma is a JavaScript danmaku renderer built around HTML Canvas. It supports s
 * [`hide()`](#hide)
 * [`unhide()`](#unhide)
 * [`destroy()`](#destroy)
+* [`clearDanmakus()`](#cleardanmakus)
+* [`resetDanmakuData()`](#resetdanmakudata)
+* [`appendDanmaku()`](#appenddanmaku)
 * [`loadDanmaJSONL()`](#loaddanmajjsonl)
 * [JSONL Record Format](#jsonl-record-format)
 * [Danmaku Modes](#danmaku-modes)
@@ -64,6 +67,8 @@ Danmaku can then be loaded from a JSONL source:
 ```js
 await dankoma.loadDanmaJSONL("/danmaku.jsonl");
 ```
+
+Additional JSONL sources can be loaded later. Loaded records are appended to the existing danmaku data.
 
 ---
 
@@ -291,25 +296,95 @@ After calling `destroy()`, the renderer should no longer be used.
 
 ---
 
+# `clearDanmakus()`
+
+```js
+dankoma.clearDanmakus()
+```
+
+Clears all currently active danmaku from the renderer.
+
+This removes:
+
+* Active scrolling danmaku
+* Active top/bottom fixed danmaku
+* Active Mode 7 danmaku
+
+Loaded danmaku data and the playback timeline are retained.
+
+```js
+dankoma.clearDanmakus();
+```
+
+This is useful when the active rendering state needs to be flushed without unloading the loaded danmaku data.
+
+---
+
+# `resetDanmakuData()`
+
+```js
+dankoma.resetDanmakuData()
+```
+
+Clears all loaded danmaku data and the associated timeline.
+
+The current danmaku index is also reset.
+
+```js
+dankoma.resetDanmakuData();
+```
+
+Unlike [`clearDanmakus()`](#cleardanmakus), this removes the loaded dataset itself.
+
+---
+
+# `appendDanmaku()`
+
+```js
+dankoma.appendDanmaku(danmaku)
+```
+
+Appends a single danmaku record to the loaded dataset and its playback timeline.
+
+```js
+dankoma.appendDanmaku([
+    "Hello world",
+    12.5,
+    1,
+    0,
+    16777215,
+    500,
+]);
+```
+
+The record is appended without re-sorting the timeline.
+
+Applications loading danmaku incrementally should append records in chronological order.
+
+---
+
 # `loadDanmaJSONL()`
 
 ```js
-await dankoma.loadDanmaJSONL(url)
+await dankoma.loadDanmaJSONL(source)
 ```
 
-Loads danmaku from a JSONL resource.
+Loads danmaku from a JSONL resource. `source` may be either a URL accepted by `fetch()` or a `Blob`. When a `Blob` is supplied, `loadDanmaJSONL()` creates a temporary object URL internally and loads the JSONL from it.
 
 Each non-empty line represents one danmaku record.
 
 The resource is processed incrementally rather than requiring the entire file to be loaded into memory before parsing.
 
-Example:
+Loaded records are **appended** to the existing danmaku dataset. Existing danmaku data is not automatically cleared.
 
-```json
-["Hello world", 1.25, 1, 0, 16777215, 500]
-["Nice song", 2.50, 1, 0, 16711680, 500]
-["Fixed comment", 4.00, 5, 0, 16777215, 500]
+```js
+await dankoma.loadDanmaJSONL("/danmaku-part-1.jsonl");
+await dankoma.loadDanmaJSONL("/danmaku-part-2.jsonl");
 ```
+
+JSONL sources should provide records in chronological order. The renderer does not sort the timeline after loading.
+
+For manually generated records, [`appendDanmaku()`](#appenddanmaku) can be used directly.
 
 ---
 
@@ -357,12 +432,11 @@ Mode 7 danmaku uses an extended payload stored in the text field of the standard
 The payload describes properties such as:
 
 * Position
-* Scale
-* Rotation
 * Opacity
 * Lifetime
 * Movement
 * Easing
+* Rotation
 * Font configuration
 * Outline configuration
 
@@ -372,39 +446,83 @@ Mode 7 supports both normalized and pixel-based coordinates.
 
 ## Mode 7 Payload
 
-A Mode 7 payload is encoded as JSON.
+A Mode 7 payload is encoded as a JSON array.
 
-Example:
+The current extended payload format is:
 
-```json
-{
-    "text": "Hello",
-    "x": 0.5,
-    "y": 0.5,
-    "duration": 4,
-    "zRotation": 0,
-    "yRotation": 0
-}
+```text
+[
+    x1,
+    y1,
+    opacity,
+    lifetime,
+    text,
+    zRotation,
+    yRotation,
+    x2,
+    y2,
+    moveDuration,
+    delay,
+    outline,
+    fontFamily,
+    linear
+]
 ```
 
-Supported properties include:
+| Index | Field          | Description                                                   |
+| ----: | -------------- | ------------------------------------------------------------- |
+|   `0` | `x1`           | Initial horizontal position.                                  |
+|   `1` | `y1`           | Initial vertical position.                                    |
+|   `2` | `opacity`      | Initial/final opacity. Can be a number or `"from-to"` string. |
+|   `3` | `lifetime`     | Display lifetime in seconds.                                  |
+|   `4` | `text`         | Text to render.                                               |
+|   `5` | `zRotation`    | Rotation around the Z axis, in degrees.                       |
+|   `6` | `yRotation`    | Perspective rotation around the Y axis, in degrees.           |
+|   `7` | `x2`           | Final horizontal position.                                    |
+|   `8` | `y2`           | Final vertical position.                                      |
+|   `9` | `moveDuration` | Movement duration in milliseconds.                            |
+|  `10` | `delay`        | Movement delay in milliseconds.                               |
+|  `11` | `outline`      | Enables the Mode 7 outline when truthy.                       |
+|  `12` | `fontFamily`   | Font family used to render the text.                          |
+|  `13` | `linear`       | Enables linear movement interpolation when truthy.            |
 
-| Property       | Description                             |
-| -------------- | --------------------------------------- |
-| `text`         | Text to render.                         |
-| `x`            | Horizontal position.                    |
-| `y`            | Vertical position.                      |
-| `duration`     | Display duration.                       |
-| `delay`        | Initial movement delay.                 |
-| `zRotation`    | Rotation around the Z axis.             |
-| `yRotation`    | Perspective rotation around the Y axis. |
-| `opacity`      | Constant or animated opacity.           |
-| `font`         | Font family.                            |
-| `weight`       | Font weight.                            |
-| `outlineWidth` | Outline width.                          |
-| `linear`       | Controls linear interpolation.          |
+The font size is taken from the standard record's `weight` field (`record[5]`) by the current implementation's Mode 7 parser.
 
-Additional fields may be present depending on the source format.
+For example:
+
+```json
+[
+    0.5,
+    0.5,
+    "1-0",
+    4,
+    "Hello Mode 7",
+    0,
+    20,
+    0.8,
+    0.5,
+    2000,
+    0,
+    1,
+    "Noto Sans",
+    0
+]
+```
+
+A complete Mode 7 record containing this payload is:
+
+```json
+[
+    "[0.5,0.5,\"1-0\",4,\"Hello Mode 7\",0,20,0.8,0.5,2000,0,1,\"Noto Sans\",0]",
+    8.0,
+    7,
+    0,
+    16777215,
+    32
+]
+```
+
+Mode 7 also accepts legacy payloads containing fewer than 14 fields. Legacy payloads use the initial position for both the start and end position and do not perform movement or rotation.
 
 ---
 
@@ -412,7 +530,7 @@ Additional fields may be present depending on the source format.
 
 Coordinates can be specified using normalized values or pixel values.
 
-Normalized coordinates are interpreted relative to the current rendering surface.
+A value between `0` and `1` is interpreted as a normalized coordinate relative to the current rendering surface.
 
 For example:
 
@@ -423,7 +541,7 @@ y = 0.5
 
 places the object at the center of the rendering area.
 
-Pixel coordinates are interpreted directly against the current canvas dimensions.
+Values outside the normalized range are interpreted as pixel coordinates.
 
 ---
 
@@ -445,9 +563,9 @@ This is useful for real-time or externally generated comments.
 dankoma.seekDanmaku(time)
 ```
 
-Updates danmaku state for a new playback position.
+Updates the danmaku timeline position for a new playback position.
 
-Timeline lookup uses the sorted danmaku timestamps to locate the appropriate starting position.
+The timeline is expected to be ordered by display time. A binary search is used to locate the corresponding starting position.
 
 ---
 
@@ -489,7 +607,9 @@ Active comments
        Canvas
 ```
 
-The timeline is sorted by display time, allowing new comments to be located efficiently during playback.
+The timeline is built incrementally as danmaku records are appended.
+
+Records are expected to be appended in chronological order, allowing the playback cursor to advance through the timeline without re-sorting the entire dataset.
 
 When playback moves backwards, a binary search is used to locate the corresponding timeline position.
 
@@ -548,7 +668,7 @@ The renderer is designed around minimizing repeated work during animation.
 
 The primary mechanisms are:
 
-* Sorted playback timeline
+* Timeline-driven playback
 * Binary-search seeking
 * Cached text metrics
 * Cached standard sprites
@@ -602,22 +722,27 @@ Mode 7 coordinates can therefore be interpreted relative to the current renderin
 
 JSONL data can be consumed progressively, allowing large danmaku datasets to be processed without first constructing one large JSON document.
 
+Additional JSONL sources can be appended to an existing dataset. Sources should be provided in chronological order.
+
 ---
 
 # Public API Summary
 
-| Method             | Description                    |
-| ------------------ | ------------------------------ |
-| `updateConfig()`   | Update renderer configuration. |
-| `trackVideo()`     | Track a video element.         |
-| `untrackVideo()`   | Stop tracking the video.       |
-| `hide()`           | Disable rendering.             |
-| `unhide()`         | Re-enable rendering.           |
-| `destroy()`        | Release renderer resources.    |
-| `loadDanmaJSONL()` | Load danmaku from JSONL.       |
-| `emitDanmaku()`    | Add a danmaku to the renderer. |
-| `seekDanmaku()`    | Seek the danmaku timeline.     |
-| `updateDanmaku()`  | Update active danmaku state.   |
+| Method               | Description                             |
+| -------------------- | --------------------------------------- |
+| `updateConfig()`     | Update renderer configuration.          |
+| `trackVideo()`       | Track a video element.                  |
+| `untrackVideo()`     | Stop tracking the video.                |
+| `hide()`             | Disable rendering.                      |
+| `unhide()`           | Re-enable rendering.                    |
+| `destroy()`          | Release renderer resources.             |
+| `clearDanmakus()`    | Clear currently active danmaku.         |
+| `resetDanmakuData()` | Clear loaded danmaku data and timeline. |
+| `appendDanmaku()`    | Append a single danmaku record.         |
+| `loadDanmaJSONL()`   | Append danmaku from JSONL.              |
+| `emitDanmaku()`      | Add a danmaku to the renderer.          |
+| `seekDanmaku()`      | Seek the danmaku timeline.              |
+| `updateDanmaku()`    | Update active danmaku state.            |
 
 ---
 
@@ -667,8 +792,8 @@ const dankoma = new Dankoma(canvas, {
 ["Bottom comment", 6.0, 4, 0, 16777215, 500]
 ```
 
-A Mode 7 record can store its extended payload in the first field:
+A Mode 7 record stores its extended payload as a JSON array in the first field:
 
 ```json
-["{\"text\":\"Mode 7\",\"x\":0.5,\"y\":0.5,\"duration\":4}",8.0,7,0,16777215,500]
+["[0.5,0.5,\"1-0\",4,\"Mode 7\",0,20,0.8,0.5,2000,0,1,\"Noto Sans\",0]",8.0,7,0,16777215,32]
 ```
