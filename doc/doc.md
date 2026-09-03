@@ -33,6 +33,7 @@ The renderer is divided into two main layers:
   * [`clearDanmakus()`](#cleardanmakus)
   * [`resetDanmakuData()`](#resetdanmakudata)
   * [`appendDanmaku()`](#appenddanmaku)
+  * [`onMissingFont()`](#onmissingfont)
   * [`loadDanmaJSONL()`](#loaddanmajjsonl)
   * [`readTextStream()`](#readtextstream)
   * [`parseJSONL()`](#parsejsonl)
@@ -67,6 +68,8 @@ The renderer is divided into two main layers:
   * [`getMetrics()`](#getmetrics)
   * [`createSprite()`](#createsprite)
   * [`getSprite()`](#getsprite)
+  * [`checkFont()`](#checkfont)
+  * [`getDanmakuFont()`](#getdanmakufont)
   * [`fontFor()`](#fontfor)
   * [`speedFor()`](#speedfor)
   * [`resize()`](#resize)
@@ -533,6 +536,33 @@ appendDanmaku()
 Loaded records are appended to the existing dataset.
 
 The timeline is **not sorted automatically**, so multiple sources should be loaded in chronological order.
+
+---
+
+# `onMissingFont()`
+
+```js
+dankoma.onMissingFont(handler)
+```
+
+Registers a callback that is invoked when a Mode 7 danmaku references a font that is not currently available to the browser.
+
+```js
+dankoma.onMissingFont(async fontname => {
+    const font = new FontFace(
+        fontname,
+        `/fonts/${fontname}.ttf`,
+    );
+
+    await font.load();
+    document.fonts.add(font);
+});
+```
+
+The callback receives the requested font family name.
+
+Dankoma does not load missing fonts automatically. The application is responsible for deciding how a missing font should be provided.
+ Dankoma instance, allowing method chaining.
 
 ### Memory behavior
 
@@ -1228,6 +1258,50 @@ If the requested combination of text, mode, and color has not previously been re
 
 ---
 
+# `checkFont()`
+
+```js
+dankoma.checkFont(fontname)
+```
+
+Checks whether a font family is available to the browser.
+
+If the font is already known to Dankoma or is available through `document.fonts`, no further action is taken.
+
+If the font is unavailable and an [`onMissingFont()`](#onmissingfont) handler has been registered, the handler is invoked.
+
+Repeated checks for the same font are cached.
+
+This method is used internally when processing Mode 7 danmaku that explicitly specify a font family.
+
+---
+
+# `getDanmakuFont()`
+
+```js
+dankoma.getDanmakuFont(comment)
+```
+
+Extracts the font family from a Mode 7 danmaku record.
+
+The font family is stored at index `12` of the extended Mode 7 payload.
+
+```text
+[
+    ...,
+    outline,
+    fontFamily,
+    linear
+]
+```
+
+Legacy Mode 7 payloads do not contain an explicit font family and return `null`.
+
+Malformed Mode 7 payloads also return `null` instead of throwing.
+
+---
+
+
 # `speedFor()`
 
 ```js
@@ -1690,6 +1764,7 @@ Active rendering state:
 | `clearDanmakus()`    | Clear currently active danmaku.               |
 | `resetDanmakuData()` | Clear loaded danmaku data and timeline.       |
 | `appendDanmaku()`    | Append one danmaku record.                    |
+| `onMissingFont()`    | Register a handler for unavailable fonts.     |
 | `loadDanmaJSONL()`   | Load and append danmaku from JSONL.           |
 | `readTextStream()`   | Decode a text `ReadableStream` into a string. |
 | `parseJSONL()`       | Parse JSONL text using a callback.            |
