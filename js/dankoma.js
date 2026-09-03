@@ -134,7 +134,7 @@ class Dankoma {
             return;
         }
 
-        if (document.fonts.check(`16px "${fontname}"`)) {
+        if (document.fonts.check(`16px ${fontname}`)) {
             this.fonts.add(fontname);
             return;
         }
