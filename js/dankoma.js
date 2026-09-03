@@ -114,6 +114,71 @@ class Dankoma {
 
         // Start generic render loops
         this.rafFrame = requestAnimationFrame(this.danmaFrame);
+
+        this.missingFontHandler = null;
+        this.fonts = new Set();
+        this.fontPromises = new Map();
+    }
+
+    /* ---------------------------------------------------------
+     * Fonts handler
+     * ------------------------------------------------------ */
+
+    onMissingFont(handler) {
+        this.missingFontHandler = handler;
+        return this;
+    }
+
+    checkFont(fontname) {
+        if (this.fonts.has(fontname)) {
+            return;
+        }
+
+        if (document.fonts.check(`16px "${fontname}"`)) {
+            this.fonts.add(fontname);
+            return;
+        }
+
+        if (!this.missingFontHandler) {
+            return;
+        }
+
+        if (this.fontPromises.has(fontname)) {
+            return;
+        }
+
+        const promise = Promise.resolve(
+            this.missingFontHandler(fontname)
+        ).finally(() => {
+            this.fontPromises.delete(fontname);
+
+            if (document.fonts.check(`16px "${fontname}"`)) {
+                this.fonts.add(fontname);
+            }
+        });
+
+        this.fontPromises.set(fontname, promise);
+    }
+
+    getDanmakuFont(comment) {
+        if (comment[2] !== 7) {
+            return null;
+        }
+
+        let data;
+
+        try {
+            data = JSON.parse(comment[0]);
+        } catch {
+            return null;
+        }
+
+        // legacy doesn't have it.
+        if (data.length < 14) return null;
+
+        return typeof data[12] === "string"
+            ? data[12]
+            : null;
     }
 
     /* ---------------------------------------------------------
@@ -191,10 +256,33 @@ class Dankoma {
 
     appendDanmaku(comment) {
         const index = this.danmaku.length;
+        const time = number(comment[1]);
+
+        if (comment[2] === 7) {
+            const font = this.getDanmakuFont(comment);
+
+            if (font) {
+                this.checkFont(font);
+            }
+        }
 
         this.danmaku.push(comment);
-        this.timeline.push({
-            time: number(comment[1]),
+
+        let lo = 0;
+        let hi = this.timeline.length;
+
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+
+            if (this.timeline[mid].time <= time) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        this.timeline.splice(lo, 0, {
+            time,
             index,
         });
     }
