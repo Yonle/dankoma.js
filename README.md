@@ -4,7 +4,7 @@
 
 **High-performance Bilibili-style danmaku renderer with Mode 7 support.**
 
-Dankoma is a JavaScript danmaku renderer built on HTML Canvas. It supports scrolling, fixed-position, reverse-scrolling, and Mode 7 danmaku, with timeline-based playback, JSONL streaming, collision management, and rendering caches.
+Dankoma is a JavaScript danmaku renderer built on HTML Canvas. It supports scrolling, fixed-position, reverse-scrolling, and Mode 7 danmaku, with timeline-based playback, JSONL loading, collision management, and rendering caches.
 
 ## Features
 
@@ -20,7 +20,7 @@ Dankoma is a JavaScript danmaku renderer built on HTML Canvas. It supports scrol
   * Opacity animation
   * Font and outline configuration
 * Video timeline synchronization
-* Incremental JSONL loading
+* JSONL loading and parsing
 * `Blob` support for JSONL loading
 * Cached text metrics and rendered sprites
 * Cached Mode 7 transformations
@@ -36,7 +36,7 @@ Dankoma can be used directly in a browser environment.
 <canvas id="danmaku"></canvas>
 <video></video>
 
-<script src="https://cdn.jsdelivr.net/npm/dankoma.js@0.0.8"></script>
+<script src="https://cdn.jsdelivr.net/npm/dankoma.js@0.0.9"></script>
 ```
 
 ## Basic Usage
@@ -148,15 +148,13 @@ See the [Mode 7 specification](doc/doc.md#mode-7) for the complete format and su
 
 ## Loading Danmaku
 
-JSONL data is loaded incrementally:
+JSONL data can be loaded from a URL or `Blob`:
 
 ```js
 await dankoma.loadDanmaJSONL("/danmaku.jsonl");
 ```
 
-`loadDanmaJSONL()` appends records to the existing danmaku dataset rather than replacing it. This makes it suitable for loading large datasets in chronological chunks.
-
-Chunks should be supplied in chronological order so that the internal playback timeline remains ordered.
+`loadDanmaJSONL()` appends records to the existing danmaku dataset rather than replacing it.
 
 The source may be either a URL accepted by `fetch()` or a `Blob`:
 
@@ -185,36 +183,72 @@ dankoma.appendDanmaku([
 ]);
 ```
 
+For lower-level stream handling, `readTextStream()` and `parseJSONL()` are also available:
+
+```js
+const text = await dankoma.readTextStream(stream);
+
+dankoma.parseJSONL(text, comment => {
+    dankoma.appendDanmaku(comment);
+});
+```
+
+The stream is decoded first, then the resulting text is parsed as JSONL.
+
 ## Runtime API
+
+### Video
 
 ```js
 dankoma.trackVideo(video);
 dankoma.untrackVideo();
+```
 
+Associates or removes the video used for timeline synchronization.
+
+### Visibility
+
+```js
 dankoma.hide();
 dankoma.unhide();
+```
 
-dankoma.emitDanmaku(danmaku);
+Temporarily disables or re-enables rendering.
+
+### Danmaku Data
+
+```js
 dankoma.appendDanmaku(danmaku);
 
 dankoma.clearDanmakus();
 dankoma.resetDanmakuData();
+```
 
-dankoma.seekDanmaku(time);
-dankoma.updateDanmaku(time);
+`appendDanmaku()` adds a single record to the loaded dataset.
 
+`clearDanmakus()` removes currently active danmaku while retaining the loaded dataset.
+
+`resetDanmakuData()` removes the loaded danmaku data and resets the playback timeline.
+
+### Configuration
+
+```js
 dankoma.updateConfig({
     style: {
         opacity: 0.9,
     },
 });
+```
 
+Updates the renderer configuration.
+
+### Cleanup
+
+```js
 dankoma.destroy();
 ```
 
-`clearDanmakus()` removes currently active danmaku from the renderer while retaining the loaded dataset.
-
-`resetDanmakuData()` removes the loaded danmaku data and resets the playback timeline.
+Stops rendering and releases the renderer's resources.
 
 ## Rendering
 
@@ -226,7 +260,7 @@ The renderer also maintains lane state for scrolling and fixed-position danmaku 
 
 ## Documentation
 
-For the complete API reference, configuration details, JSONL format, Mode 7 specification, rendering architecture, and implementation notes:
+For the complete API reference, configuration details, JSONL format, Mode 7 specification, internal functions, and implementation notes:
 
 **[Documentation](doc/doc.md)**
 

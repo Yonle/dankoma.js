@@ -209,34 +209,39 @@ class Dankoma {
             throw new Error(`failed to fetch danmaku: ${response.status}`);
         }
 
-        await this.parseJSONL(response, this.appendDanmaku.bind(this));
+        const text = await this.readTextStream(response.body);
+
+        this.parseJSONL(text, this.appendDanmaku.bind(this));
 
         if (source instanceof Blob) {
             URL.revokeObjectURL(fetchSource);
         }
     }
 
-    /* ---------------------------------------------------------
-     * JSONL Parser
-     * ------------------------------------------------------ */
-    async parseJSONL(response, onComment) {
-        const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-        let buffer = "";
+    async readTextStream(stream) {
+        const reader = stream
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+
+        let text = "";
 
         while (true) {
             const { value, done } = await reader.read();
-            if (done) break;
-            buffer += value;
-            const lines = buffer.split("\n");
-            buffer = lines.pop();
 
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                onComment(JSON.parse(line));
-            }
+            if (done) break;
+
+            text += value;
         }
 
-        if (buffer.trim()) onComment(JSON.parse(buffer));
+        return text;
+    }
+
+    parseJSONL(text, onComment) {
+        for (const line of text.split("\n")) {
+            if (!line.trim()) continue;
+
+            onComment(JSON.parse(line));
+        }
     }
 
     /* ---------------------------------------------------------
