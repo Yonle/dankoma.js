@@ -173,27 +173,47 @@ class Dankoma {
         this.metricsCache.clear();
     }
 
-    async loadDanmaJSONL(source) {
-        const fetchSource = source instanceof Blob ? URL.createObjectURL(source) : source;
-        const response = await fetch(fetchSource);
-        if (!response.ok) throw new Error(`failed to fetch danmaku: ${response.status}`);
-
-        this.danmaku = [];
-        this.timeline = [];
-        this.danmakuIndex = 0;
-        this.lastVideoTime = this.video ? this.video.currentTime : 0;
+    clearDanmakus() {
+        this.comments.length = 0;
         this.activeMode7.clear();
+        this.rebuildLanes();
+        this.ctx.clearRect(0, 0, this.W, this.H);
+    }
 
-        await this.parseJSONL(response, (comment) => {
-            const index = this.danmaku.length;
-            this.danmaku.push(comment);
-            this.timeline.push({ time: comment[1], index });
-        });
-
-        this.timeline.sort((a, b) => a.time - b.time);
+    resetDanmakuData() {
+        this.danmaku.length = 0;
+        this.timeline.length = 0;
         this.danmakuIndex = 0;
+        this.activeMode7.clear();
+        this.comments.length = 0;
+        this.rebuildLanes();
+    }
 
-        if (source instanceof Blob) URL.revokeObjectURL(fetchSource);
+    appendDanmaku(comment) {
+        const index = this.danmaku.length;
+
+        this.danmaku.push(comment);
+        this.timeline.push({
+            time: number(comment[1]),
+            index,
+        });
+    }
+
+    async loadDanmaJSONL(source) {
+        const fetchSource = source instanceof Blob
+            ? URL.createObjectURL(source)
+            : source;
+
+        const response = await fetch(fetchSource);
+        if (!response.ok) {
+            throw new Error(`failed to fetch danmaku: ${response.status}`);
+        }
+
+        await this.parseJSONL(response, this.appendDanmaku.bind(this));
+
+        if (source instanceof Blob) {
+            URL.revokeObjectURL(fetchSource);
+        }
     }
 
     /* ---------------------------------------------------------
