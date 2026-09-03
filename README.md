@@ -21,6 +21,7 @@ Dankoma is a JavaScript danmaku renderer built on HTML Canvas. It supports scrol
   * Font and outline configuration
 * Video timeline synchronization
 * Incremental JSONL loading
+* `Blob` support for JSONL loading
 * Cached text metrics and rendered sprites
 * Cached Mode 7 transformations
 * Lane-based collision management
@@ -44,7 +45,7 @@ Dankoma can be used directly in a browser environment.
 const canvas = document.getElementById("danmaku");
 const video = document.querySelector("video");
 
-const dankoma = new Dankoma(canvas,
+const dankoma = new Dankoma(canvas, {
     style: {
         opacity: 0.8,
     },
@@ -98,25 +99,91 @@ Where `mode` determines the rendering behavior:
 
 ## Mode 7
 
-Mode 7 records use an extended JSON payload.
+Mode 7 records use an extended JSON array payload.
+
+The payload format is:
+
+```text
+[x1, y1, opacity, lifetime, text, zRotation, yRotation,
+ x2, y2, moveDuration, delay, outline, fontFamily, linear]
+```
 
 For example:
 
 ```json
-["{\"text\":\"Hello\",\"x\":0.5,\"y\":0.5,\"duration\":4,\"yRotation\":25}",8.0,7,0,16777215,500]
+[
+    0.5,
+    0.5,
+    "1-0",
+    4,
+    "Hello Mode 7",
+    0,
+    20,
+    0.8,
+    0.5,
+    2000,
+    0,
+    1,
+    "Noto Sans",
+    0
+]
 ```
 
-Mode 7 supports positioning, animation, easing, rotation, perspective effects, opacity, fonts, and outlines.
+As a complete danmaku record:
 
-## Loading Large Danmaku Files
+```json
+[
+    "[0.5,0.5,\"1-0\",4,\"Hello Mode 7\",0,20,0.8,0.5,2000,0,1,\"Noto Sans\",0]",
+    8.0,
+    7,
+    0,
+    16777215,
+    32
+]
+```
 
-JSONL data is consumed incrementally:
+Mode 7 supports positioning, movement, easing, rotation, perspective effects, opacity animation, fonts, and outlines.
+
+See the [Mode 7 specification](doc/doc.md#mode-7) for the complete format and supported fields.
+
+## Loading Danmaku
+
+JSONL data is loaded incrementally:
 
 ```js
 await dankoma.loadDanmaJSONL("/danmaku.jsonl");
 ```
 
-This allows large danmaku datasets to be processed progressively instead of requiring the entire JSON document to be parsed at once.
+`loadDanmaJSONL()` appends records to the existing danmaku dataset rather than replacing it. This makes it suitable for loading large datasets in chronological chunks.
+
+Chunks should be supplied in chronological order so that the internal playback timeline remains ordered.
+
+The source may be either a URL accepted by `fetch()` or a `Blob`:
+
+```js
+const blob = new Blob([
+    '["Hello world",1.0,1,0,16777215,500]\n'
+], {
+    type: "application/jsonl",
+});
+
+await dankoma.loadDanmaJSONL(blob);
+```
+
+When a `Blob` is supplied, Dankoma creates a temporary object URL internally and loads the JSONL from it.
+
+For manually adding individual records, use:
+
+```js
+dankoma.appendDanmaku([
+    "Hello world",
+    10.0,
+    1,
+    0,
+    16777215,
+    500,
+]);
+```
 
 ## Runtime API
 
@@ -128,6 +195,10 @@ dankoma.hide();
 dankoma.unhide();
 
 dankoma.emitDanmaku(danmaku);
+dankoma.appendDanmaku(danmaku);
+
+dankoma.clearDanmakus();
+dankoma.resetDanmakuData();
 
 dankoma.seekDanmaku(time);
 dankoma.updateDanmaku(time);
@@ -140,6 +211,10 @@ dankoma.updateConfig({
 
 dankoma.destroy();
 ```
+
+`clearDanmakus()` removes currently active danmaku from the renderer while retaining the loaded dataset.
+
+`resetDanmakuData()` removes the loaded danmaku data and resets the playback timeline.
 
 ## Rendering
 
