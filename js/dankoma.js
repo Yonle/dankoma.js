@@ -39,6 +39,12 @@ function rgbaFromRGB888(color, alpha = 1) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function normalizeFontName(fontname) {
+    return fontname
+        .trim()
+        .replace(/^(['"])(.*)\1$/, "$2");
+}
+
 function makeCanvas(width, height) {
     if (typeof OffscreenCanvas !== "undefined") {
         return new OffscreenCanvas(width, height);
@@ -130,6 +136,8 @@ class Dankoma {
     }
 
     checkFont(fontname) {
+        fontname = normalizeFontName(fontname); // normalize certain quotes
+
         if (this.fonts.has(fontname)) {
             return;
         }

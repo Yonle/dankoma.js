@@ -1474,6 +1474,16 @@ This is primarily used for sprite generation.
 
 ---
 
+# `normalizeFontName()`
+
+```js
+normalizeFontName(fontname)
+```
+
+Normalize value of font used in Mode7
+
+---
+
 # Rendering Architecture
 
 Dankoma separates data loading, scheduling, state management, and rendering.
