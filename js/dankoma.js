@@ -152,7 +152,7 @@ class Dankoma {
         ).finally(() => {
             this.fontPromises.delete(fontname);
 
-            if (document.fonts.check(`16px "${fontname}"`)) {
+            if (document.fonts.check(`16px ${fontname}`)) {
                 this.fonts.add(fontname);
             }
         });
