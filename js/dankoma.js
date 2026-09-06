@@ -109,13 +109,14 @@ class Dankoma {
         this.mode7SpriteCache = new Map();
         this.renderCache = new Map();
         this.metricsCache = new Map();
+        this.mode7PayloadCache = new WeakMap();
 
         // Bindings for events and RAF
         this.resize = this.resize.bind(this);
         this.trackDanma = this.trackDanma.bind(this);
         this.danmaFrame = this.danmaFrame.bind(this);
 
-        window.addEventListener("resize", this.resize);
+        this.canvas.addEventListener("resize", this.resize);
         this.resize();
 
         // Start generic render loops
@@ -168,6 +169,32 @@ class Dankoma {
         this.fontPromises.set(fontname, promise);
     }
 
+    parseMode7Payload(comment) {
+        if (!Array.isArray(comment)) {
+            throw new TypeError("mode7 comment must be an array");
+        }
+
+        let data = this.mode7PayloadCache.get(comment);
+        if (data) return data;
+
+        const payload = comment[0];
+
+        try {
+            data = typeof payload === "string"
+                ? JSON.parse(payload)
+                : payload;
+        } catch (error) {
+            throw new Error(`failed to parse Mode 7 payload: ${error.message}`);
+        }
+
+        if (!Array.isArray(data) || data.length < 5) {
+            throw new Error("invalid Mode 7 payload");
+        }
+
+        this.mode7PayloadCache.set(comment, data);
+        return data;
+    }
+
     getDanmakuFont(comment) {
         if (comment[2] !== 7) {
             return null;
@@ -176,7 +203,7 @@ class Dankoma {
         let data;
 
         try {
-            data = JSON.parse(comment[0]);
+            data = this.parseMode7Payload(comment);
         } catch {
             return null;
         }
@@ -241,7 +268,7 @@ class Dankoma {
         this.danmaku = [];
         this.timeline = [];
         this.activeMode7.clear();
-        this.mode7SpriteCache.clear();
+        this.clearMode7Caches();
         this.renderCache.clear();
         this.metricsCache.clear();
     }
@@ -249,6 +276,7 @@ class Dankoma {
     clearDanmakus() {
         this.comments.length = 0;
         this.activeMode7.clear();
+        this.clearMode7Caches();
         this.rebuildLanes();
         this.ctx.clearRect(0, 0, this.W, this.H);
     }
@@ -258,6 +286,7 @@ class Dankoma {
         this.timeline.length = 0;
         this.danmakuIndex = 0;
         this.activeMode7.clear();
+        this.clearMode7Caches();
         this.comments.length = 0;
         this.rebuildLanes();
     }
@@ -441,7 +470,6 @@ class Dankoma {
 
     createMode7(record) {
         if (!Array.isArray(record)) throw new TypeError("mode7 record must be an array");
-        const payload = record[0];
         const startTime = number(record[1]);
         const mode = number(record[2]);
         const color = number(record[4], 0xffffff);
@@ -449,12 +477,7 @@ class Dankoma {
 
         if (mode !== 7) throw new Error(`expected Mode 7, got mode ${mode}`);
 
-        let data;
-        try {
-            data = typeof payload === "string" ? JSON.parse(payload) : payload;
-        } catch (error) {
-            throw new Error(`failed to parse Mode 7 payload: ${error.message}`);
-        }
+        const data = this.parseMode7Payload(record);
 
         if (!Array.isArray(data) || data.length < 5) throw new Error("invalid Mode 7 payload");
 
@@ -477,7 +500,9 @@ class Dankoma {
             delay = Math.max(0, number(data[10], 0));
             zRotation = number(data[5], 0);
             yRotation = number(data[6], 0);
-            fontFamily = data[12] ? `"${data[12]}", ${this.config.fonts.family}` : this.config.fonts.family;
+            fontFamily = data[12]
+                ? this.mode7FontFamily(data[12])
+                : this.config.fonts.family;
             outline = number(data[11], 0);
             linear = number(data[13], 1);
         } else {
@@ -499,7 +524,7 @@ class Dankoma {
             text: String(data[4] ?? ""),
             fontSize,
             fontFamily,
-            fontWeight: this.config.mode7.weight,
+            fontWeight: record[5] || this.config.mode7.weight,
             color,
             outline: Boolean(outline),
             outlineWidth: this.config.mode7.outlineWidth,
@@ -512,7 +537,16 @@ class Dankoma {
     }
 
     buildMode7Sprite(danmaku) {
-        const { text, fontSize, fontFamily, fontWeight, color, outline, outlineWidth } = danmaku;
+        const {
+            text,
+            fontSize,
+            fontFamily,
+            fontWeight,
+            color,
+            outline,
+            outlineWidth
+        } = danmaku;
+
         const lines = String(text).split("\n");
         const font = `${fontWeight} ${fontSize}px ${fontFamily}`;
 
@@ -527,12 +561,33 @@ class Dankoma {
         }
 
         const lineHeight = Math.max(1, Math.ceil(fontSize));
-        const padding = outline ? Math.ceil(outlineWidth * 2 + fontSize * 0.1) : Math.ceil(fontSize * 0.1);
 
-        const logicalWidth = Math.max(1, Math.ceil(textWidth + padding * 2));
-        const logicalHeight = Math.max(1, Math.ceil(lines.length * lineHeight + padding * 2));
+        const paddingLeft = outline
+            ? Math.ceil(outlineWidth / 2)
+            : 0;
 
-        const canvas = makeCanvas(Math.ceil(logicalWidth * this.SPRITE_DPR), Math.ceil(logicalHeight * this.SPRITE_DPR));
+        const paddingRight = outline
+            ? Math.ceil(outlineWidth * 2 + fontSize * 0.1)
+            : Math.ceil(fontSize * 0.1);
+
+        const paddingTop = paddingRight;
+        const paddingBottom = paddingRight;
+
+        const logicalWidth = Math.max(
+            1,
+            Math.ceil(textWidth + paddingLeft + paddingRight)
+        );
+
+        const logicalHeight = Math.max(
+            1,
+            Math.ceil(lines.length * lineHeight + paddingTop + paddingBottom)
+        );
+
+        const canvas = makeCanvas(
+            Math.ceil(logicalWidth * this.SPRITE_DPR),
+            Math.ceil(logicalHeight * this.SPRITE_DPR)
+        );
+
         const ctx = canvas.getContext("2d", { alpha: true });
 
         ctx.scale(this.SPRITE_DPR, this.SPRITE_DPR);
@@ -541,25 +596,41 @@ class Dankoma {
         ctx.textAlign = "left";
 
         for (let i = 0; i < lines.length; i++) {
-            const x = padding;
-            const y = padding + i * lineHeight;
+            const x = paddingLeft;
+            const y = paddingTop + i * lineHeight;
+
             if (outline) {
                 ctx.lineWidth = outlineWidth;
                 ctx.lineJoin = "round";
                 ctx.strokeStyle = "rgba(0, 0, 0, 1)";
                 ctx.strokeText(lines[i], x, y);
             }
+
             ctx.fillStyle = rgbaFromRGB888(color, 1);
             ctx.fillText(lines[i], x, y);
         }
 
-        return { canvas, width: logicalWidth, height: logicalHeight };
+        return {
+            canvas,
+            width: logicalWidth,
+            height: logicalHeight,
+            dpr: this.SPRITE_DPR
+        };
     }
 
     getMode7Sprite(danmaku) {
         if (danmaku.sprite) return danmaku.sprite;
-        const key = [danmaku.text, danmaku.fontSize, danmaku.fontFamily, danmaku.fontWeight, danmaku.color, danmaku.outline, danmaku.outlineWidth, this.config.laneHeight, this.SPRITE_DPR].join("|");
-        
+        const key = [
+            danmaku.text,
+            danmaku.fontSize,
+            danmaku.fontFamily,
+            danmaku.fontWeight,
+            danmaku.color,
+            danmaku.outline,
+            danmaku.outlineWidth,
+            this.SPRITE_DPR
+        ].join("|");
+
         let sprite = this.mode7SpriteCache.get(key);
         if (!sprite) {
             sprite = this.buildMode7Sprite(danmaku);
@@ -583,7 +654,7 @@ class Dankoma {
             this.mode7RenderedCache.set(sprite, cache);
         }
 
-        const key = `${rotationKey}:${this.W}:${slices}`;
+        const key = `${rotationKey}:${slices}`;
         let rendered = cache.get(key);
         if (rendered) return rendered;
 
@@ -592,7 +663,7 @@ class Dankoma {
         const sinA = Math.sin(angle);
         const width = sprite.width;
         const height = sprite.height;
-        const spriteDpr = sprite.canvas.width / sprite.width;
+        const spriteDpr = sprite.dpr;
         const srcCanvasWidth = sprite.canvas.width;
         const srcH = sprite.canvas.height;
         const leftX = 0;
@@ -615,7 +686,7 @@ class Dankoma {
         const outputWidth = Math.ceil(maxX - minX) + pad * 2;
         const outputHeight = Math.ceil(projectedHeight) + pad * 2;
 
-        const start = performance.now();
+        // const start = performance.now();
 
         /*console.log({
             spriteWidth: sprite.width,
@@ -652,9 +723,10 @@ class Dankoma {
             return sprite;
         }
 
-        const outputCanvas = document.createElement("canvas");
-        outputCanvas.width = Math.ceil(outputWidth * spriteDpr);
-        outputCanvas.height = Math.ceil(outputHeight * spriteDpr);
+        const outputCanvas = makeCanvas(
+            Math.ceil(outputWidth * spriteDpr),
+            Math.ceil(outputHeight * spriteDpr)
+        );
         
         const out = outputCanvas.getContext("2d", { alpha: true });
         out.imageSmoothingEnabled = false;
@@ -664,38 +736,43 @@ class Dankoma {
         for (let i = 0; i < slices; i++) {
             const x0 = (width * i) / slices;
             const x1 = (width * (i + 1)) / slices;
+
             const rotX0 = x0 * cosA;
             const rotZ0 = -x0 * sinA;
             const depth0 = focal + rotZ0;
+
             if (depth0 <= 1) continue;
 
             const scale0 = focal / depth0;
             const destX0 = rotX0 * scale0;
+
             const rotX1 = x1 * cosA;
             const rotZ1 = -x1 * sinA;
             const depth1 = focal + rotZ1;
+
             if (depth1 <= 1) continue;
 
             const scale1 = focal / depth1;
             const destX1 = rotX1 * scale1;
+
             const destLeft = Math.min(destX0, destX1);
             const destWidth = Math.abs(destX1 - destX0);
 
-            const destHeight = height * scale0;
+            const xMid = (x0 + x1) * 0.5;
+            const depthMid = focal - xMid * sinA;
+
+            if (depthMid <= 1) continue;
+
+            const scaleMid = focal / depthMid;
+            const destHeight = height * scaleMid;
+
             const destY = 0;
+
             const srcX0 = Math.floor((srcCanvasWidth * i) / slices);
             const srcX1 = Math.floor((srcCanvasWidth * (i + 1)) / slices);
             const srcW = srcX1 - srcX0;
-            if (srcW <= 0) continue;
 
-            /*console.log({
-                depth0,
-                depth1,
-                scale0,
-                scale1,
-                destX0,
-                destX1
-            });*/
+            if (srcW <= 0) continue;
 
             out.drawImage(
                 sprite.canvas,
@@ -747,21 +824,35 @@ class Dankoma {
         if (!frame) return false;
 
         const sprite = this.getMode7RenderedSprite(danmaku);
+
         this.ctx.save();
+
         this.ctx.translate(frame.x, frame.y);
-        
+
         if (frame.zRotation !== 0) {
             this.ctx.rotate(degree(frame.zRotation));
         }
-        
+
         this.ctx.globalAlpha = Math.max(0, Math.min(1, frame.opacity));
 
         if (danmaku.yRotation === 0) {
-            this.ctx.drawImage(sprite.canvas, 0, 0, sprite.width, sprite.height);
+            this.ctx.drawImage(
+                sprite.canvas,
+                0,
+                0,
+                sprite.width,
+                sprite.height
+            );
         } else {
-            this.ctx.drawImage(sprite.canvas, sprite.offsetX, sprite.offsetY, sprite.width, sprite.height);
+            this.ctx.drawImage(
+                sprite.canvas,
+                sprite.offsetX,
+                sprite.offsetY,
+                sprite.width,
+                sprite.height
+            );
         }
-        
+
         this.ctx.restore();
         return true;
     }
@@ -772,6 +863,12 @@ class Dankoma {
                 this.activeMode7.delete(d);
             }
         }
+    }
+
+    clearMode7Caches() {
+        this.mode7PayloadCache = new WeakMap();
+        this.mode7RenderedCache = new WeakMap();
+        this.mode7SpriteCache.clear();
     }
 
     /* ---------------------------------------------------------
@@ -880,13 +977,14 @@ class Dankoma {
 
     resize() {
         this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-        this.W = window.innerWidth;
-        this.H = window.innerHeight;
+
+        const rect = this.canvas.getBoundingClientRect();
+
+        this.W = rect.width;
+        this.H = rect.height;
 
         this.canvas.width = Math.floor(this.W * this.dpr);
         this.canvas.height = Math.floor(this.H * this.dpr);
-        this.canvas.style.width = `${this.W}px`;
-        this.canvas.style.height = `${this.H}px`;
 
         this.mode7RenderedCache = new WeakMap();
 
