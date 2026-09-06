@@ -81,6 +81,7 @@ The renderer is divided into two main layers:
   * [`parseCoordinate()`](#parsecoordinate)
   * [`mode7_ease()`](#mode7_ease)
   * [`rgbaFromRGB888()`](#rgbafromrgb888)
+  * [`normalizeFontName()`](#normalizefontname)
   * [`makeCanvas()`](#makecanvas)
 * [Rendering Architecture](#rendering-architecture)
 * [Sprite Cache](#sprite-cache)
@@ -659,7 +660,7 @@ A standard danmaku record has the following structure:
 |   `2` | `mode`      | Danmaku rendering mode.                 |
 |   `3` | `timestamp` | Source timestamp.                       |
 |   `4` | `color`     | RGB color value.                        |
-|   `5` | `weight`    | Font-size-related value used by Mode 7. |
+|   `5` | `weight`    | Mode 7 Font-size value.                 |
 
 For standard danmaku, the renderer currently uses its configured font weight rather than the record's `weight` field.
 
@@ -800,20 +801,32 @@ Legacy payloads:
 
 ## Mode 7 Coordinate System
 
-Coordinates can be specified using normalized values or pixel values.
+Mode 7 coordinates specify the top-left origin of the rendered Mode 7 sprite.
 
-Values between `0` and `1` are interpreted as normalized coordinates relative to the current rendering surface.
+The sprite may contain internal padding to prevent text outlines from being clipped, but this padding does not modify the Mode 7 position.
 
 For example:
 
 ```text
-x = 0.5
-y = 0.5
+Mode 7 position
+      ↓
+┌──────────────────────────────┐
+│ padding                      │
+│ Text                         │
+│                              │
+└──────────────────────────────┘
 ```
 
-places the object at the center of the rendering area.
+The value of `x1` / `y1` therefore refers to the sprite origin.
 
-Values outside the normalized range are interpreted as pixel coordinates.
+Coordinates between `0` and `1` are interpreted as a fraction of the current rendering width or height:
+
+```js
+x = normalizedX * canvasWidth
+y = normalizedY * canvasHeight
+```
+
+Values outside that range are interpreted directly as pixel coordinates.
 
 ---
 
@@ -1122,7 +1135,7 @@ It:
 
 1. Calculates its current frame state.
 2. Obtains the appropriate cached sprite.
-3. Applies position.
+3. Places the sprite at the Mode 7 frame coordinates.
 4. Applies Z rotation.
 5. Applies opacity.
 6. Draws the sprite.
@@ -1159,7 +1172,15 @@ The method:
 * Draws optional outlines.
 * Renders the text at the configured sprite DPR.
 
-The returned sprite contains the canvas and logical dimensions.
+The returned sprite contains:
+
+* The rasterized canvas.
+* Logical width and height.
+* The DPR used to create the rasterized canvas.
+
+The sprite uses asymmetric padding.
+
+When outlines are enabled, a minimal left-side margin is retained so the outline is not clipped. Additional padding is retained on the remaining sides for safe rasterization.
 
 ---
 
@@ -1585,17 +1606,22 @@ The cache key includes properties such as:
 
 ### Perspective transformation cache
 
-Stores Y-rotated versions of the base sprite.
+Stores Y-rotated versions of the base Mode 7 sprite.
 
 The transformed representation depends on:
 
 * Quantized Y rotation.
-* Rendering width.
 * Slice count.
 
 A `WeakMap` associates transformed caches with their source sprites.
 
-The transformed cache is invalidated when the rendering size changes.
+The transformed cache is discarded when the rendering size changes.
+
+### Payload cache
+
+Mode 7 payloads are parsed once and cached against their source record.
+
+This avoids repeatedly calling `JSON.parse()` when the payload is inspected during font detection and Mode 7 object creation.
 
 ---
 
