@@ -103,7 +103,7 @@ const canvas = document.getElementById("danmaku");
 const video = document.querySelector("video");
 
 const dankoma = new Dankoma(canvas, {
-    laneHeight: 32,
+    laneHeight: 40,
     dpr: 1.5,
 });
 
@@ -171,7 +171,7 @@ The default configuration is:
 
 ```js
 {
-    laneHeight: 32,
+    laneHeight: 40,
     dpr: 1,
 
     fonts: {
@@ -207,7 +207,7 @@ The default configuration is:
 Height of a standard danmaku lane in pixels.
 
 ```js
-laneHeight: 32
+laneHeight: 40
 ```
 
 The available vertical rendering area is divided into lanes using this value.
@@ -1809,7 +1809,7 @@ Active rendering state:
 
 ```js
 const dankoma = new Dankoma(canvas, {
-    laneHeight: 32,
+    laneHeight: 40,
     dpr: 1.5,
 
     fonts: {
