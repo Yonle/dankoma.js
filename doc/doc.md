@@ -1345,14 +1345,12 @@ This ensures the comment takes approximately the configured scrolling duration t
 dankoma.resize()
 ```
 
-Updates rendering dimensions and DPR when the viewport changes.
+Updates the renderer to match the canvas's current display size and device pixel ratio.
 
 It:
-
-* Reads `window.devicePixelRatio`.
-* Caps the rendering DPR at `2`.
-* Updates canvas dimensions.
-* Updates canvas CSS dimensions.
+* Reads the canvas display size from getBoundingClientRect().
+* Caps the rendering DPR at 2.
+* Resizes the canvas backing buffer.
 * Resets the Mode 7 transformed-sprite cache.
 * Rebuilds lane state.
 
