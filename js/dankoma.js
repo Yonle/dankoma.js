@@ -66,7 +66,7 @@ class Dankoma {
 
         // Default Config
         this.config = {
-            laneHeight: 32,
+            laneHeight: 40,
             dpr: 1,
             fonts: {
                 scroll: 32,
