@@ -116,7 +116,8 @@ class Dankoma {
         this.trackDanma = this.trackDanma.bind(this);
         this.danmaFrame = this.danmaFrame.bind(this);
 
-        this.canvas.addEventListener("resize", this.resize);
+        this.resizeObserver = new ResizeObserver(this.resize);
+        this.resizeObserver.observe(this.canvas);
         this.resize();
 
         // Start generic render loops
@@ -271,6 +272,7 @@ class Dankoma {
         this.clearMode7Caches();
         this.renderCache.clear();
         this.metricsCache.clear();
+        this.resizeObserver?.disconnect();
     }
 
     clearDanmakus() {
